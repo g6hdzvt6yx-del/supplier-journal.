@@ -26,12 +26,12 @@ function connection(text, state) {
 }
 async function requestPayments(query = 'select=*', options = {}) {
   if (!configured) throw new Error('Не заполнены настройки Supabase');
-  const response = await fetch(`${cfg.SUPABASE_URL}/rest/v1/payments?${query}`, {
+  const separator = query ? '&' : '';
+  const url = `${cfg.SUPABASE_URL}/rest/v1/payments?${query}${separator}apikey=${encodeURIComponent(cfg.SUPABASE_ANON_KEY)}`;
+  const response = await fetch(url, {
     ...options,
     headers: {
-      apikey: cfg.SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}`,
-      'Content-Type': 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers || {})
     }
   });
@@ -44,10 +44,8 @@ async function requestPayments(query = 'select=*', options = {}) {
 }
 async function fetchAllPayments() {
   const all = [];
-  for (let start = 0; ; start += 1000) {
-    const response = await requestPayments('select=*&order=due_date.asc&order=id.asc', {
-      headers: { Range: `${start}-${start + 999}` }
-    });
+  for (let offset = 0; ; offset += 1000) {
+    const response = await requestPayments(`select=*&order=due_date.asc&order=id.asc&limit=1000&offset=${offset}`);
     const page = await response.json();
     all.push(...page);
     if (page.length < 1000) return all;
