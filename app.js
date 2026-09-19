@@ -28,13 +28,26 @@ async function requestPayments(query = 'select=*', options = {}) {
   if (!configured) throw new Error('Не заполнены настройки Supabase');
   const separator = query ? '&' : '';
   const url = `${cfg.SUPABASE_URL}/rest/v1/payments?${query}${separator}apikey=${encodeURIComponent(cfg.SUPABASE_ANON_KEY)}`;
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(options.headers || {})
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.headers || {})
+      }
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw new Error('Supabase недоступен из этой сети. Попробуйте другую сеть или VPN');
     }
-  });
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
   if (!response.ok) {
     let detail = '';
     try { detail = (await response.json()).message || ''; } catch (_) {}
